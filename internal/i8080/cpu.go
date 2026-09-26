@@ -34,6 +34,16 @@ func (c *CPU) fetchWord() uint16 {
 	return hi<<8 | lo
 }
 
+// Read word lo byte first.
+func (c *CPU) readWord(addr uint16) uint16 {
+	return uint16(c.bus.Read(addr+1))<<8 | uint16(c.bus.Read(addr))
+}
+
+func (c *CPU) writeWord(addr uint16, v uint16) {
+	c.bus.Write(addr, byte(v))
+	c.bus.Write(addr+1, byte(v>>8))
+}
+
 // Execute instruction at PC and return cycles count.
 func (c *CPU) Step() int {
 	if c.halted {
@@ -47,5 +57,5 @@ func (c *CPU) setBC(v uint16) { c.B, c.C = byte(v>>8), byte(v) }
 func (c *CPU) setDE(v uint16) { c.D, c.E = byte(v>>8), byte(v) }
 func (c *CPU) setHL(v uint16) { c.H, c.L = byte(v>>8), byte(v) }
 func (c *CPU) hl() uint16     { return uint16(c.H)<<8 | uint16(c.L) }
-func (c *CPU) bc() uint16     { return uint16(c.B)>>8 | uint16(c.C) }
-func (c *CPU) de() uint16     { return uint16(c.D)>>8 | uint16(c.E) }
+func (c *CPU) bc() uint16     { return uint16(c.B)<<8 | uint16(c.C) }
+func (c *CPU) de() uint16     { return uint16(c.D)<<8 | uint16(c.E) }
