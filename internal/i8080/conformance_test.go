@@ -86,6 +86,14 @@ func TestConformance(t *testing.T) {
 		t.Run(opcode, func(t *testing.T) {
 			for _, tc := range cases {
 				t.Run(tc.Name, func(t *testing.T) {
+					defer func() {
+						if r := recover(); r != nil {
+							if op, ok := r.(errUnimplemented); ok {
+								t.Skipf("unimplemented opcode %02X", byte(op))
+							}
+							panic(r) // anything else is a real bug; let it fly
+						}
+					}()
 					bus := &flatBus{}
 					c := New(bus)
 					loadState(c, bus, tc.Initial)

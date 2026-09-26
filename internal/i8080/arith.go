@@ -1,16 +1,5 @@
 package i8080
 
-var src = []func(*CPU) byte{
-	func(c *CPU) byte { return c.B },                // 000
-	func(c *CPU) byte { return c.C },                // 001
-	func(c *CPU) byte { return c.D },                // 010
-	func(c *CPU) byte { return c.E },                // 011
-	func(c *CPU) byte { return c.H },                // 100
-	func(c *CPU) byte { return c.L },                // 101
-	func(c *CPU) byte { return c.bus.Read(c.hl()) }, // 110 = M
-	func(c *CPU) byte { return c.A },                // 111
-}
-
 // implement ADD/ADI/ADC
 func (c *CPU) addCore(v byte, carry byte) {
 	sum := uint16(c.A) + uint16(v) + uint16(carry)
