@@ -73,6 +73,32 @@ func (c *CPU) cmp(v byte) {
 	c.A = a
 }
 
+// INR
+func (c *CPU) inr(v byte) byte {
+
+	c.Aux = v&0x0f == 0xF
+
+	result := v + byte(1)
+	c.setSZP(result)
+	return result
+}
+
+// DCR
+func (c *CPU) dcr(v byte) byte {
+
+	c.Aux = v&0x0f != 0
+
+	result := v - byte(1)
+	c.setSZP(result)
+	return result
+}
+
+// DAD
+func (c *CPU) dad(v uint16) uint16 {
+	c.Carry = int(c.hl())+int(v) > 65535
+	return (c.hl() + v)
+}
+
 func opsArith() {
 	for s, get := range src {
 		cycles := 4
@@ -88,6 +114,18 @@ func opsArith() {
 		ops[0xB0+s] = func(c *CPU) int { c.ora(get(c)); return cycles } // ORA
 		ops[0xB8+s] = func(c *CPU) int { c.cmp(get(c)); return cycles } // CMP
 	}
+
+	// INR/DCR
+	for s, get := range src {
+		put := dst[s]
+		cycles := 5
+		if s == 6 {
+			cycles = 10
+		}
+		ops[0x04+(8*s)] = func(c *CPU) int { put(c, c.inr(get(c))); return cycles }
+		ops[0x05+(8*s)] = func(c *CPU) int { put(c, c.dcr(get(c))); return cycles }
+	}
+
 	ops[0xC6] = func(c *CPU) int { c.add(c.fetchByte()); return 7 } // ADI
 	ops[0xCE] = func(c *CPU) int { c.adc(c.fetchByte()); return 7 } // ACI
 	ops[0xD6] = func(c *CPU) int { c.sub(c.fetchByte()); return 7 } // SUI
@@ -96,4 +134,21 @@ func opsArith() {
 	ops[0xEE] = func(c *CPU) int { c.xra(c.fetchByte()); return 7 } // XRI
 	ops[0xF6] = func(c *CPU) int { c.ora(c.fetchByte()); return 7 } // ORI
 	ops[0xFE] = func(c *CPU) int { c.cmp(c.fetchByte()); return 7 } // CPI
+
+	// INX/DCX
+	ops[0x03] = func(c *CPU) int { c.setBC(c.bc() + 1); return 5 }
+	ops[0x13] = func(c *CPU) int { c.setDE(c.de() + 1); return 5 }
+	ops[0x23] = func(c *CPU) int { c.setHL(c.hl() + 1); return 5 }
+	ops[0x33] = func(c *CPU) int { c.SP += 1; return 5 }
+	ops[0x0B] = func(c *CPU) int { c.setBC(c.bc() - 1); return 5 }
+	ops[0x1B] = func(c *CPU) int { c.setDE(c.de() - 1); return 5 }
+	ops[0x2B] = func(c *CPU) int { c.setHL(c.hl() - 1); return 5 }
+	ops[0x3B] = func(c *CPU) int { c.SP -= 1; return 5 }
+
+	// DAD
+	ops[0x09] = func(c *CPU) int { c.setHL(c.dad(c.bc())); return 10 }
+	ops[0x19] = func(c *CPU) int { c.setHL(c.dad(c.de())); return 10 }
+	ops[0x29] = func(c *CPU) int { c.setHL(c.dad(c.hl())); return 10 }
+	ops[0x39] = func(c *CPU) int { c.setHL(c.dad(c.SP)); return 10 }
+
 }

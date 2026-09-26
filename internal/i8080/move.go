@@ -14,7 +14,8 @@ func opsMove() {
 		}
 	}
 
-	ops[0x76] = func(c *CPU) int { c.halted = true; return 7 } // HLT returns 7
+	// HLT
+	ops[0x76] = func(c *CPU) int { c.halted = true; return 7 }
 
 	// MVI implementation below
 	for d, put := range dst {
@@ -53,5 +54,4 @@ func opsMove() {
 
 	// XCHG
 	ops[0xEB] = func(c *CPU) int { store := c.hl(); c.setHL(c.de()); c.setDE(store); return 4 }
-
 }
