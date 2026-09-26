@@ -36,6 +36,7 @@ func init() {
 	opsControl() // NOP, JMP, HLT... (control.go)
 	opsArith()   // Math family (arith.go)
 	opsMove()    // MOV family
+	opsAcc()     // Accumulator bit operations
 
 	for i, h := range ops {
 		if h == nil {
