@@ -2,8 +2,10 @@ package i8080
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -86,8 +88,12 @@ func loadState(c *CPU, bus *flatBus, s testState) {
 	c.PC, c.SP = s.PC, s.SP
 	c.A, c.B, c.C, c.D, c.E, c.H, c.L = s.A, s.B, s.C, s.D, s.E, s.H, s.L
 	c.setPSW(s.F)
-	c.intEnabled = s.Inte != 0
+	// The suite models the EI delay as an inhibit flag: EI sets inte at once and
+	// ei_pending suppresses acknowledgement for one instruction. This CPU defers
+	// instead (eiPending promotes to intEnabled after the next instruction), so
+	// inte=1,ei_pending=1 loads as intEnabled=false. See testdata/tests_readme.md.
 	c.eiPending = s.EIPending != 0
+	c.intEnabled = s.Inte != 0 && !c.eiPending
 	c.halted = s.Halted != 0
 	for _, r := range s.RAM {
 		bus.mem[r[0]] = byte(r[1])
@@ -107,9 +113,12 @@ func checkState(t *testing.T, c *CPU, bus *flatBus, want testState) {
 	if c.psw() != want.F {
 		t.Errorf("flags: got %08b, want %08b", c.psw(), want.F)
 	}
-	if c.intEnabled != (want.Inte != 0) || c.halted != (want.Halted != 0) {
-		t.Errorf("inte/halted: got %v/%v, want %v/%v",
-			c.intEnabled, c.halted, want.Inte != 0, want.Halted != 0)
+	// Inverse of the load mapping above: a deferred EI still reads as inte set.
+	inte := c.intEnabled || c.eiPending
+	if inte != (want.Inte != 0) || c.eiPending != (want.EIPending != 0) || c.halted != (want.Halted != 0) {
+		t.Errorf("inte/ei_pending/halted: got %v/%v/%v, want %v/%v/%v",
+			inte, c.eiPending, c.halted,
+			want.Inte != 0, want.EIPending != 0, want.Halted != 0)
 	}
 	for _, r := range want.RAM {
 		if bus.mem[r[0]] != byte(r[1]) {
@@ -117,6 +126,30 @@ func checkState(t *testing.T, c *CPU, bus *flatBus, want testState) {
 		}
 	}
 }
+
+// Subtest outcome counts, kept per opcode and summed for the whole run.
+type tally struct{ pass, skip, fail int }
+
+// record classifies a finished subtest. Failed is checked first so a case that
+// errors and then skips still counts against us.
+func (ta *tally) record(t *testing.T) {
+	switch {
+	case t.Failed():
+		ta.fail++
+	case t.Skipped():
+		ta.skip++
+	default:
+		ta.pass++
+	}
+}
+
+func (ta *tally) add(o tally) {
+	ta.pass += o.pass
+	ta.skip += o.skip
+	ta.fail += o.fail
+}
+
+func (ta tally) total() int { return ta.pass + ta.skip + ta.fail }
 
 func TestConformance(t *testing.T) {
 	data, err := os.ReadFile("testdata/i8080_tests.json")
@@ -128,10 +161,15 @@ func TestConformance(t *testing.T) {
 		t.Fatalf("parsing tests: %v", err)
 	}
 
+	var total tally
+	var skippedOps, failedOps []string
+
 	for opcode, cases := range tf.Tests {
+		var counts tally
 		t.Run(opcode, func(t *testing.T) {
 			for _, tc := range cases {
 				t.Run(tc.Name, func(t *testing.T) {
+					t.Cleanup(func() { counts.record(t) })
 					defer func() {
 						if r := recover(); r != nil {
 							if op, ok := r.(errUnimplemented); ok {
@@ -155,6 +193,26 @@ func TestConformance(t *testing.T) {
 				})
 			}
 		})
+
+		total.add(counts)
+		switch {
+		case counts.fail > 0:
+			failedOps = append(failedOps, fmt.Sprintf("%s(%d)", opcode, counts.fail))
+		case len(cases) > 0 && counts.skip == len(cases):
+			skippedOps = append(skippedOps, opcode)
+		}
 	}
 
+	// Printed rather than logged: t.Log output is hidden without -v, and the
+	// summary is the point of running the suite.
+	fmt.Printf("conformance: %d cases, %d passed, %d skipped, %d failed\n",
+		total.total(), total.pass, total.skip, total.fail)
+	if len(skippedOps) > 0 {
+		slices.Sort(skippedOps)
+		fmt.Printf("  unimplemented: %s\n", strings.Join(skippedOps, " "))
+	}
+	if len(failedOps) > 0 {
+		slices.Sort(failedOps)
+		fmt.Printf("  failing: %s\n", strings.Join(failedOps, " "))
+	}
 }

@@ -41,6 +41,19 @@ func init() {
 	opsCond()    // JMP, calls/returns, etc (branch.go)
 	opsStack()   // Stack operations (stack.go)
 
+	// Undocumented aliases
+
+	//NOP
+	for _, op := range []byte{0x08, 0x10, 0x18, 0x20, 0x28, 0x30, 0x38} {
+		ops[op] = ops[0x00]
+	}
+
+	ops[0xCB] = ops[0xC3] // JMP a16
+	ops[0xD9] = ops[0xC9] // RET
+	for _, op := range []byte{0xDD, 0xED, 0xFD} {
+		ops[op] = ops[0xCD] // CALL a16
+	}
+
 	for i, h := range ops {
 		if h == nil {
 			ops[i] = unimplemented(byte(i))
