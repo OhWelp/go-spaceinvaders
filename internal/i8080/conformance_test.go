@@ -3,6 +3,7 @@ package i8080
 import (
 	"encoding/json"
 	"os"
+	"slices"
 	"testing"
 )
 
@@ -16,6 +17,25 @@ type testCase struct {
 	Initial testState `json:"initial"`
 	Final   testState `json:"final"`
 	Cycles  int       `json:"cycles"`
+	Ports   []port    `json:"ports,omitempty"`
+}
+
+type port struct {
+	Num, Value byte
+	Dir        string
+}
+
+func (p *port) UnmarshalJSON(b []byte) error {
+	var raw [3]json.RawMessage
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	for i, dst := range []any{&p.Num, &p.Value, &p.Dir} {
+		if err := json.Unmarshal(raw[i], dst); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type testState struct {
@@ -29,12 +49,38 @@ type testState struct {
 	RAM              [][2]int `json:"ram"`
 }
 
-type flatBus struct{ mem [65536]byte }
+type flatBus struct {
+	mem [65536]byte
+	in  map[byte]byte
+	log []port
+}
 
 func (b *flatBus) Read(a uint16) byte     { return b.mem[a] }
 func (b *flatBus) Write(a uint16, v byte) { b.mem[a] = v }
-func (b *flatBus) In(p byte) byte         { return 0 }
-func (b *flatBus) Out(p, v byte)          {}
+func (b *flatBus) In(p byte) byte {
+	v := b.in[p]
+	b.log = append(b.log, port{p, v, "r"})
+	return v
+}
+func (b *flatBus) Out(p, v byte) { b.log = append(b.log, port{p, v, "w"}) }
+
+func loadPorts(bus *flatBus, ports []port) {
+	for _, p := range ports {
+		if p.Dir == "r" {
+			if bus.in == nil {
+				bus.in = make(map[byte]byte, len(ports))
+			}
+			bus.in[p.Num] = p.Value
+		}
+	}
+}
+
+func checkPorts(t *testing.T, got, want []port) {
+	t.Helper()
+	if !slices.Equal(got, want) {
+		t.Errorf("ports: got %v, want %v", got, want)
+	}
+}
 
 func loadState(c *CPU, bus *flatBus, s testState) {
 	c.PC, c.SP = s.PC, s.SP
@@ -97,6 +143,7 @@ func TestConformance(t *testing.T) {
 					bus := &flatBus{}
 					c := New(bus)
 					loadState(c, bus, tc.Initial)
+					loadPorts(bus, tc.Ports)
 
 					cycles := c.Step()
 
@@ -104,6 +151,7 @@ func TestConformance(t *testing.T) {
 						t.Errorf("cycles: got %d, want %d", cycles, tc.Cycles)
 					}
 					checkState(t, c, bus, tc.Final)
+					checkPorts(t, bus.log, tc.Ports)
 				})
 			}
 		})

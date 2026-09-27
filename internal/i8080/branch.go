@@ -22,6 +22,12 @@ func (c *CPU) evalCondition(b byte) bool {
 	return false
 }
 
+func (c *CPU) callCore() {
+	addr := c.fetchWord()
+	c.push(c.PC)
+	c.PC = addr
+}
+
 func opsCond() {
 
 	// JCC implementation
@@ -41,4 +47,40 @@ func opsCond() {
 	// PCHL
 	ops[0xE9] = func(c *CPU) int { c.PC = c.hl(); return 5 }
 
+	// CALL
+	ops[0xCD] = func(c *CPU) int { c.callCore(); return 17 }
+
+	// Cccc implementation
+	for cc := range byte(8) {
+		ops[0xc4+8*cc] = func(c *CPU) int {
+			if c.evalCondition(cc) {
+				c.callCore()
+				return 17
+			}
+			c.PC += 2 // Consume operand if we don't take the branch
+			return 11
+		}
+	}
+
+	// RET
+	ops[0xc9] = func(c *CPU) int { c.PC = c.pop(); return 10 }
+
+	for cc := range byte(8) {
+		ops[0xc0+8*cc] = func(c *CPU) int {
+			if c.evalCondition(cc) {
+				c.PC = c.pop()
+				return 11
+			}
+			return 5
+		}
+	}
+
+	// RST
+	for nn := range byte(8) {
+		ops[0xc7+8*nn] = func(c *CPU) int {
+			c.push(c.PC)
+			c.PC = uint16(nn * 8)
+			return 11
+		}
+	}
 }

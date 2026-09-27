@@ -50,8 +50,12 @@ func init() {
 
 type errUnimplemented byte
 
+func (op errUnimplemented) Error() string {
+	return fmt.Sprintf("unimplemented opcode %02X", byte(op))
+}
+
 func unimplemented(op byte) handler {
 	return func(c *CPU) int {
-		panic(fmt.Sprintf("unimplemented opcode %02X at %04X", op, c.PC-1))
+		panic(errUnimplemented(op))
 	}
 }
