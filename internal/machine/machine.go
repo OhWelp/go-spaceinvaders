@@ -1,6 +1,29 @@
 package machine
 
-import "github.com/OhWelp/go-spaceinvaders/internal/i8080"
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/OhWelp/go-spaceinvaders/internal/i8080"
+)
+
+const cyclesPerHalfFrame = 2_000_000 / 60 / 2 // 16,666 cycles per half-frame
+
+func (m *Machine) RunFrame() {
+	m.runCycles(cyclesPerHalfFrame)
+	m.cpu.Interrupt(0xCF)
+	m.runCycles(cyclesPerHalfFrame)
+	m.cpu.Interrupt(0xD7)
+}
+
+func (m *Machine) Framebuffer() []byte { return m.mem[0x2400:0x4000] }
+
+func (m *Machine) runCycles(n int) {
+	for n > 0 {
+		n -= m.cpu.Step()
+	}
+}
 
 type Machine struct {
 	cpu         *i8080.CPU
@@ -13,4 +36,71 @@ type Machine struct {
 
 	prevOut3 byte
 	prevOut5 byte
+}
+
+func New(rom []byte) (*Machine, error) {
+	if len(rom) > 0x2000 {
+		return nil, fmt.Errorf("rom is %d bytes; max is 8192", len(rom))
+	}
+	m := &Machine{}
+	copy(m.mem[:], rom)
+	m.cpu = i8080.New(m)
+	m.port1 = 0x08
+	return m, nil
+}
+
+func (m *Machine) Read(addr uint16) byte {
+	if addr >= 0x4000 {
+		addr = 0x2000 + (addr & 0x1FFF)
+	}
+	return m.mem[addr]
+}
+
+func (m *Machine) Write(addr uint16, b byte) {
+	if addr >= 0x4000 {
+		addr = 0x2000 + (addr & 0x1FFF)
+	}
+	if addr < 0x2000 {
+		return
+	}
+	m.mem[addr] = b
+}
+
+func (m *Machine) In(port byte) byte {
+	switch port {
+	case 1:
+		return m.port1
+	case 2:
+		return m.port2
+	case 3:
+		return byte(m.shift >> (8 - m.shiftOffset))
+	}
+	return 0
+}
+
+func (m *Machine) Out(port byte, b byte) {
+	switch port {
+	case 2:
+		m.shiftOffset = b & 0x07
+	case 3:
+		m.prevOut3 = b
+	case 4:
+		m.shift = uint16(b)<<8 | m.shift>>8
+	case 5:
+		m.prevOut5 = b
+	}
+}
+
+var romParts = []string{"invaders.h", "invaders.g", "invaders.f", "invaders.e"}
+
+func LoadROM(dir string) ([]byte, error) {
+	var rom []byte
+	for _, part := range romParts {
+		b, err := os.ReadFile(filepath.Join(dir, part))
+		if err != nil {
+			return nil, fmt.Errorf("loading %s: %w", part, err)
+		}
+		rom = append(rom, b...)
+	}
+	return rom, nil
 }
