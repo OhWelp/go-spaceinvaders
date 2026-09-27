@@ -1,2 +1,6 @@
-internal/i8080/testdata/
+# The raw 480 MB conformance suite stays local; the gzipped copy is committed.
+internal/i8080/testdata/*
+!internal/i8080/testdata/i8080_tests.json.gz
+!internal/i8080/testdata/tests_readme.md
+
 invaders

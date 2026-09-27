@@ -1,6 +1,8 @@
 package i8080
 
 import (
+	"bufio"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -152,12 +154,20 @@ func (ta *tally) add(o tally) {
 func (ta tally) total() int { return ta.pass + ta.skip + ta.fail }
 
 func TestConformance(t *testing.T) {
-	data, err := os.ReadFile("testdata/i8080_tests.json")
+	// The suite is committed gzipped (64 MB rather than 480 MB) and streamed
+	// straight into the decoder, so the raw JSON is never held in memory.
+	f, err := os.Open("testdata/i8080_tests.json.gz")
+	if err != nil {
+		t.Fatalf("opening tests: %v", err)
+	}
+	defer f.Close()
+	zr, err := gzip.NewReader(bufio.NewReaderSize(f, 1<<20))
 	if err != nil {
 		t.Fatalf("reading tests: %v", err)
 	}
+	defer zr.Close()
 	var tf testFile
-	if err := json.Unmarshal(data, &tf); err != nil {
+	if err := json.NewDecoder(bufio.NewReaderSize(zr, 1<<20)).Decode(&tf); err != nil {
 		t.Fatalf("parsing tests: %v", err)
 	}
 
