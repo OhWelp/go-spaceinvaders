@@ -32,11 +32,14 @@ var dst = []writer{
 	func(c *CPU, v byte) { c.A = v },
 }
 
+// Builds our dispatch table on initialization
 func init() {
 	opsControl() // NOP, JMP, HLT... (control.go)
 	opsArith()   // Math family (arith.go)
-	opsMove()    // MOV family
-	opsAcc()     // Accumulator bit operations
+	opsMove()    // MOV family (move.go)
+	opsAcc()     // Accumulator bit operations (acc.go)
+	opsCond()    // JMP, calls/returns, etc (branch.go)
+	opsStack()   // Stack operations (stack.go)
 
 	for i, h := range ops {
 		if h == nil {
