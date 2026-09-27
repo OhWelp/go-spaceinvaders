@@ -91,6 +91,22 @@ func (m *Machine) Out(port byte, b byte) {
 	}
 }
 
+func (m *Machine) SetInputs(coin, start1, start2, fire, left, right bool) {
+	set := func(bit byte, on bool) {
+		if on {
+			m.port1 |= 1 << bit
+		} else {
+			m.port1 &^= 1 << bit
+		}
+	}
+	set(0, coin)
+	set(1, start2)
+	set(2, start1)
+	set(4, fire)
+	set(5, left)
+	set(6, right)
+}
+
 var romParts = []string{"invaders.h", "invaders.g", "invaders.f", "invaders.e"}
 
 func LoadROM(dir string) ([]byte, error) {

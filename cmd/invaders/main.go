@@ -6,6 +6,7 @@ import (
 
 	"github.com/OhWelp/go-spaceinvaders/internal/machine"
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
 type game struct {
@@ -14,6 +15,14 @@ type game struct {
 }
 
 func (g *game) Update() error {
+	g.m.SetInputs(
+		inpututil.IsKeyJustPressed(ebiten.KeyC),
+		ebiten.IsKeyPressed(ebiten.Key1),
+		ebiten.IsKeyPressed(ebiten.Key2),
+		ebiten.IsKeyPressed(ebiten.KeySpace),
+		ebiten.IsKeyPressed(ebiten.KeyArrowLeft),
+		ebiten.IsKeyPressed(ebiten.KeyArrowRight),
+	)
 	g.m.RunFrame()
 	return nil
 }
@@ -46,8 +55,10 @@ func main() {
 		log.Fatal(err)
 	}
 
+	const scale = 4
 	g := &game{m: m, img: ebiten.NewImage(224, 256)}
-	ebiten.SetWindowSize(448, 512)
+	ebiten.SetWindowSize(224*scale, 256*scale)
+	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	ebiten.SetWindowTitle("Space Invaders")
 	if err := ebiten.RunGame(g); err != nil {
 		log.Fatal(err)
