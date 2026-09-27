@@ -36,9 +36,11 @@ type Machine struct {
 
 	prevOut3 byte
 	prevOut5 byte
+
+	sounds Sounds
 }
 
-func New(rom []byte) (*Machine, error) {
+func New(rom []byte, sounds Sounds) (*Machine, error) {
 	if len(rom) > 0x2000 {
 		return nil, fmt.Errorf("rom is %d bytes; max is 8192", len(rom))
 	}
@@ -46,6 +48,7 @@ func New(rom []byte) (*Machine, error) {
 	copy(m.mem[:], rom)
 	m.cpu = i8080.New(m)
 	m.port1 = 0x08
+	m.sounds = sounds
 	return m, nil
 }
 
@@ -83,10 +86,25 @@ func (m *Machine) Out(port byte, b byte) {
 	case 2:
 		m.shiftOffset = b & 0x07
 	case 3:
+		if m.sounds != nil {
+			m.sounds.SetUFO(b&0x01 != 0)
+			for bit := 1; bit <= 3; bit++ {
+				if b&(1<<bit) != 0 && m.prevOut3&(1<<bit) == 0 {
+					m.sounds.Play(bit)
+				}
+			}
+		}
 		m.prevOut3 = b
 	case 4:
 		m.shift = uint16(b)<<8 | m.shift>>8
 	case 5:
+		if m.sounds != nil {
+			for bit := 0; bit <= 4; bit++ {
+				if b&(1<<bit) != 0 && m.prevOut5&(1<<bit) == 0 {
+					m.sounds.Play(8 + bit)
+				}
+			}
+		}
 		m.prevOut5 = b
 	}
 }
@@ -119,4 +137,9 @@ func LoadROM(dir string) ([]byte, error) {
 		rom = append(rom, b...)
 	}
 	return rom, nil
+}
+
+type Sounds interface {
+	Play(id int)
+	SetUFO(on bool)
 }

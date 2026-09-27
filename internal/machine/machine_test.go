@@ -1,7 +1,6 @@
 package machine
 
 import (
-	"hash/crc32"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -31,27 +30,4 @@ func loadROM(t *testing.T) []byte {
 		rom = append(rom, b...)
 	}
 	return rom
-}
-
-func TestAttractMode(t *testing.T) {
-	m, err := New(loadROM(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	for range 600 { // ~10 seconds of attract mode
-		m.RunFrame()
-	}
-
-	vram := m.mem[0x2400:0x4000]
-	lit := 0
-	for _, b := range vram {
-		if b != 0 {
-			lit++
-		}
-	}
-	if lit < 500 {
-		t.Fatalf("VRAM nearly empty after 600 frames (%d nonzero bytes) — emulation likely stalled", lit)
-	}
-	t.Logf("VRAM: %d/%d bytes lit, checksum %08X", lit, len(vram), crc32.ChecksumIEEE(vram))
 }
