@@ -50,7 +50,21 @@ func (c *CPU) Step() int {
 		return 4
 	}
 	op := c.fetchByte()
-	return ops[op](c)
+	cycles := ops[op](c)
+	if c.eiPending && op != 0xFB {
+		c.eiPending = false
+	}
+	return cycles
+}
+
+// Offers CPU an interrupt. Returns 0 if interrupts are disabled.
+func (c *CPU) Interrupt(opcode byte) int {
+	if !c.intEnabled || c.eiPending {
+		return 0
+	}
+	c.intEnabled = false
+	c.halted = false
+	return ops[opcode](c)
 }
 
 func (c *CPU) setBC(v uint16) { c.B, c.C = byte(v>>8), byte(v) }
